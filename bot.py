@@ -79,16 +79,68 @@ async def eight_ball(ctx, *, question):
     await ctx.send(f'Question: {question}\nAnswer: {random.choice(responses)}')
 
 # A command to help users understand what commands are available
+# A more sophisticated help command
 @bot.command(name='help')
-async def help_command(ctx):
-    help_text = """
-**Bot Commands**
-`!hello` - Get a friendly greeting from the bot
-`!serverinfo` - Display information about this server
-`!8ball [question]` - Ask the magic 8-ball a question
-`!help` - Show this help message
-    """
-    await ctx.send(help_text)
-
+async def help_command(ctx, category=None):
+    if category is None:
+        # Show categories
+        categories = {
+            "general": "Basic bot commands",
+            "info": "Server and user information commands",
+            "fun": "Entertainment commands"
+        }
+        
+        embed = discord.Embed(
+            title="Bot Help System",
+            description="Use `!help [category]` to see commands in each category",
+            color=discord.Color.dark_green()
+        )
+        
+        for cat_name, cat_desc in categories.items():
+            embed.add_field(name=cat_name.capitalize(), value=cat_desc, inline=False)
+        
+        await ctx.send(embed=embed)
+    else:
+        # Show commands in the specified category
+        category = category.lower()
+        commands_list = {
+            "general": {
+                "help": "Shows this help message",
+                "ping": "Checks bot response time"
+            },
+            "info": {
+                "serverinfo": "Shows information about the server",
+                "userinfo": "Shows information about a user"
+            },
+            "fun": {
+                "8ball": "Ask the magic 8-ball a question",
+                "roll": "Roll a dice with specified sides"
+            }
+        }
+        
+        if category in commands_list:
+            embed = discord.Embed(
+                title=f"{category.capitalize()} Commands",
+                color=discord.Color.blue()
+            )
+            
+            for cmd_name, cmd_desc in commands_list[category].items():
+                embed.add_field(name=f"!{cmd_name}", value=cmd_desc, inline=False)
+            
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send(f"Category '{category}' not found. Use `!help` to see available categories.")
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        await ctx.send("Command not found. Use `!help` to see available commands.")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f"Missing required argument. Usage: `!{ctx.command.name} {ctx.command.signature}`")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send(f"Invalid argument type. Please check your input.")
+    else:
+        # Log the error for debugging
+        print(f"Error in command {ctx.command}: {error}")
+        await ctx.send("An error occurred while processing this command.")
 # Run the bot with our token
 bot.run(TOKEN)
