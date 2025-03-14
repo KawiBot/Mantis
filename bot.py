@@ -1,5 +1,6 @@
 import os
 import discord
+import time
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -78,7 +79,35 @@ async def eight_ball(ctx, *, question):
     ]
     await ctx.send(f'Question: {question}\nAnswer: {random.choice(responses)}')
 
-# A command to help users understand what commands are available
+@bot.command(name="ping")
+async def ping(ctx):
+    start_time = time.time()
+
+    message = await ctx.send("Pinging...")
+
+    end_time = time.time()
+
+    ws_latency = round(bot.latency * 1000)
+    
+    msg_latency = round((end_time - start_time) * 1000)
+
+    if ws_latency < 100:
+        color = discord.Color.green()
+    elif ws_latency < 200:
+        color = discord.Color.gold()
+    else: 
+        color = discord.Color.red()
+
+    embed = discord.Embed(
+        title="🏓 Pong!",
+        description="Here's my current response time:",
+        color=color
+    )
+    embed.add_field(name="WebSocket Latency", value =f"{ws_latency}ms", inline=True)
+    embed.add_field(name="Message Latency", value=f"{msg_latency}ms", inline=True)
+
+    await message.edit(content=None, embed=embed)
+
 # A more sophisticated help command
 @bot.command(name='help')
 async def help_command(ctx, category=None):
