@@ -3,6 +3,12 @@ import discord
 import time
 from discord.ext import commands
 from dotenv import load_dotenv
+import asyncio
+import json
+import re
+import datetime
+from discord.ext import tasks
+
 
 # Load the token from our .env file
 load_dotenv()
@@ -21,6 +27,12 @@ bot.remove_command('help')
 async def on_ready():
     print(f'{bot.user.name} has connected to Discord!')
     print(f'Bot is in {len(bot.guilds)} servers')
+        # Load saved reminders
+    load_reminders()
+    
+    # Start checking for reminders if there are any
+    if any(reminders.values()):
+        check_reminders.start()
 
 # A simple command that responds when a user types !hello
 @bot.command(name='hello')
@@ -171,5 +183,189 @@ async def on_command_error(ctx, error):
         # Log the error for debugging
         print(f"Error in command {ctx.command}: {error}")
         await ctx.send("An error occurred while processing this command.")
+
+# Dictionary to store active reminders
+reminders = {}
+
+# Function to save reminders to a file
+def save_reminders():
+    with open('reminders.json', 'w') as f:
+        # Convert datetime objects to strings for JSON serialization
+        serializable_reminders = {}
+        for user_id, user_reminders in reminders.items():
+            serializable_reminders[user_id] = []
+            for reminder in user_reminders:
+                serializable_reminder = reminder.copy()
+                serializable_reminder['end_time'] = reminder['end_time'].isoformat()
+                serializable_reminders[user_id].append(serializable_reminder)
+        
+        json.dump(serializable_reminders, f)
+
+# Function to load reminders from a file
+def load_reminders():
+    global reminders
+    try:
+        with open('reminders.json', 'r') as f:
+            serialized_reminders = json.load(f)
+            
+            # Convert string timestamps back to datetime objects
+            for user_id, user_reminders in serialized_reminders.items():
+                reminders[user_id] = []
+                for reminder in user_reminders:
+                    reminder['end_time'] = datetime.datetime.fromisoformat(reminder['end_time'])
+                    reminders[user_id].append(reminder)
+    except FileNotFoundError:
+        # If the file doesn't exist yet, start with an empty dictionary
+        reminders = {}
+
+# Parse time string like "5m", "2h", "1d" into seconds
+def parse_time(time_str):
+    # Regular expression to match a number followed by a time unit
+    match = re.match(r'(\d+)([smhdw])', time_str.lower())
+    if not match:
+        return None
+    
+    amount, unit = match.groups()
+    amount = int(amount)
+    
+    # Convert to seconds based on the unit
+    if unit == 's':  # seconds
+        return amount
+    elif unit == 'm':  # minutes
+        return amount * 60
+    elif unit == 'h':  # hours
+        return amount * 3600
+    elif unit == 'd':  # days
+        return amount * 86400
+    elif unit == 'w':  # weeks
+        return amount * 604800
+
+@bot.command(name='remindme')
+async def remind_me(ctx, time_str, *, reminder_text):
+    """Set a reminder. Example: !remindme 5m Take the pizza out of the oven"""
+    
+    # Parse the time string
+    seconds = parse_time(time_str)
+    if seconds is None:
+        await ctx.send("Invalid time format. Use something like `5m`, `2h`, or `1d`.")
+        return
+    
+    # Calculate when the reminder should trigger
+    end_time = datetime.datetime.now() + datetime.timedelta(seconds=seconds)
+    
+    # Store the reminder
+    user_id = str(ctx.author.id)
+    if user_id not in reminders:
+        reminders[user_id] = []
+    
+    reminder_data = {
+        'channel_id': ctx.channel.id,
+        'message': reminder_text,
+        'end_time': end_time,
+        'reminder_id': len(reminders[user_id])
+    }
+    
+    reminders[user_id].append(reminder_data)
+    
+    # Save to file
+    save_reminders()
+    
+    # Format a confirmation message with the reminder time
+    time_str = end_time.strftime("%I:%M %p on %b %d, %Y")
+    await ctx.send(f"I'll remind you about '{reminder_text}' at {time_str}")
+    
+    # Start the reminder check task if it's not already running
+    if not check_reminders.is_running():
+        check_reminders.start()
+
+@bot.command(name='myreminders')
+async def list_reminders(ctx):
+    """List all your active reminders"""
+    user_id = str(ctx.author.id)
+    
+    if user_id not in reminders or not reminders[user_id]:
+        await ctx.send("You don't have any active reminders.")
+        return
+    
+    embed = discord.Embed(
+        title="Your Active Reminders",
+        color=discord.Color.blue()
+    )
+    
+    for i, reminder in enumerate(reminders[user_id]):
+        time_str = reminder['end_time'].strftime("%I:%M %p on %b %d, %Y")
+        embed.add_field(
+            name=f"#{i+1}: Due at {time_str}",
+            value=reminder['message'],
+            inline=False
+        )
+    
+    await ctx.send(embed=embed)
+
+@bot.command(name='cancelreminder')
+async def cancel_reminder(ctx, reminder_num: int):
+    """Cancel a reminder by its number"""
+    user_id = str(ctx.author.id)
+    
+    # Check if the user has any reminders
+    if user_id not in reminders or not reminders[user_id]:
+        await ctx.send("You don't have any active reminders to cancel.")
+        return
+    
+    # Check if the reminder number is valid
+    if reminder_num <= 0 or reminder_num > len(reminders[user_id]):
+        await ctx.send(f"Invalid reminder number. Use `!myreminders` to see your active reminders.")
+        return
+    
+    # Remove the reminder
+    cancelled = reminders[user_id].pop(reminder_num - 1)
+    save_reminders()
+    
+    await ctx.send(f"Cancelled reminder: '{cancelled['message']}'")
+    
+    # Stop the check task if there are no more reminders
+    if sum(len(user_reminders) for user_reminders in reminders.values()) == 0:
+        check_reminders.stop()
+
+# Task that runs every minute to check for due reminders
+@tasks.loop(seconds=30)
+async def check_reminders():
+    current_time = datetime.datetime.now()
+    
+    for user_id in list(reminders.keys()):  # Use list() to avoid dictionary size change during iteration
+        if user_id in reminders:  # Double-check since we're modifying during iteration
+            user_reminders = reminders[user_id]
+            due_reminders = []
+            
+            # Find due reminders
+            for i, reminder in enumerate(user_reminders):
+                if current_time >= reminder['end_time']:
+                    due_reminders.append((i, reminder))
+            
+            # Process due reminders (in reverse order to avoid index issues when removing)
+            for i, reminder in sorted(due_reminders, reverse=True):
+                try:
+                    # Get the channel
+                    channel = bot.get_channel(reminder['channel_id'])
+                    if channel:
+                        # Send the reminder
+                        user = await bot.fetch_user(int(user_id))
+                        await channel.send(f"{user.mention} Reminder: {reminder['message']}")
+                    
+                    # Remove this reminder
+                    user_reminders.pop(i)
+                except Exception as e:
+                    print(f"Error sending reminder: {e}")
+            
+            # Remove the user from reminders if they have no more reminders
+            if not user_reminders:
+                del reminders[user_id]
+    
+    # Save updated reminders
+    save_reminders()
+    
+    # Stop the task if there are no more reminders
+    if not any(reminders.values()):
+        check_reminders.stop()
 # Run the bot with our token
 bot.run(TOKEN)
