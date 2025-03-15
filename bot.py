@@ -452,5 +452,55 @@ async def google_search(ctx, *, query):
             # Print the full error for debugging
             import traceback
             traceback.print_exc()
+import random
+
+@bot.command(name="roll")
+async def roll_dice(ctx, *, dice_notation="1d6"):
+    """
+    Roll dice using standard dice notation (e.g., 2d6, 1d20).
+    Usage: !roll [dice_notation]
+    Default is 1d6 if no notation is provided.
+    """
+    # Regular expression to match dice notation pattern (XdY)
+    # X = number of dice, Y = number of sides
+    dice_pattern = re.compile(r'^(\d+)d(\d+)$')
+    match = dice_pattern.match(dice_notation.lower().replace(" ", ""))
+    
+    # Check if the provided notation is valid
+    if not match:
+        await ctx.send(f"Invalid dice notation. Please use the format `NdS` where N is the number of dice and S is the sides (e.g., `2d6`).")
+        return
+    
+    # Extract the number of dice and sides
+    num_dice = int(match.group(1))
+    num_sides = int(match.group(2))
+    
+    # Set reasonable limits to prevent abuse
+    if num_dice <= 0 or num_sides <= 1:
+        await ctx.send("Both the number of dice and sides must be positive numbers. Sides must be at least 2.")
+        return
+    
+    if num_dice > 100:
+        await ctx.send("You can only roll up to 100 dice at once.")
+        return
+    
+    if num_sides > 1000:
+        await ctx.send("Dice cannot have more than 1000 sides.")
+        return
+    
+    # Roll the dice
+    rolls = [random.randint(1, num_sides) for _ in range(num_dice)]
+    total = sum(rolls)
+    
+    # Create a response message
+    if num_dice == 1:
+        # For a single die, keep it simple
+        result_message = f"🎲 You rolled a {total}"
+    else:
+        # For multiple dice, show individual rolls and the total
+        roll_details = ' + '.join(str(r) for r in rolls)
+        result_message = f"🎲 You rolled {num_dice}d{num_sides}:\n{roll_details} = **{total}**"
+    
+    await ctx.send(result_message)
 # Run the bot with our token
 bot.run(TOKEN)
