@@ -8,11 +8,13 @@ import json
 import re
 import datetime
 from discord.ext import tasks
-
+import aiohttp
 
 # Load the token from our .env file
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+GOOGLE_CSE_ID = os.getenv('GOOGLE_CSE_ID')
 
 # Set up our bot with necessary permissions
 intents = discord.Intents.default()
@@ -383,5 +385,72 @@ async def check_reminders():
     # Stop the task if there are no more reminders
     if not any(reminders.values()):
         check_reminders.stop()
+
+@bot.command(name="google")
+async def google_search(ctx, *, query):
+    """Search Google and return the top results"""
+    
+    # Check if the API credentials are available
+    if not GOOGLE_API_KEY or not GOOGLE_CSE_ID:
+        await ctx.send("The search feature is not configured properly. Please ask the bot administrator to set up Google API credentials.")
+        return
+    
+    # Send a typing indicator to show the bot is working
+    async with ctx.typing():
+        try:
+            # Construct the API URL
+            url = "https://www.googleapis.com/customsearch/v1"
+            params = {
+                'q': query,          # The search query
+                'key': GOOGLE_API_KEY,  # Your API key
+                'cx': GOOGLE_CSE_ID,    # Your search engine ID
+                'num': 5             # Number of results to return (max 10)
+            }
+            
+            # Send the request to Google
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params) as response:
+                    # Check if the request was successful
+                    if response.status != 200:
+                        await ctx.send(f"Error: Received status code {response.status} from Google API.")
+                        return
+                    
+                    # Parse the JSON response
+                    data = await response.json()
+                    
+                    # Check if there are any search results
+                    if 'items' not in data:
+                        await ctx.send(f"No results found for '{query}'.")
+                        return
+                    
+                    # Create an embed to display the results
+                    embed = discord.Embed(
+                        title=f"Google Search Results for '{query}'",
+                        color=discord.Color.blue(),
+                        url=f"https://www.google.com/search?q={query.replace(' ', '+')}"
+                    )
+                    
+                    # Add each result to the embed
+                    for i, item in enumerate(data['items'], 1):
+                        title = item['title']
+                        link = item['link']
+                        snippet = item.get('snippet', 'No description available.')
+                        
+                        # Add a field for this result
+                        embed.add_field(
+                            name=f"{i}. {title}",
+                            value=f"{snippet}\n[Link]({link})",
+                            inline=False
+                        )
+                    
+                    # Send the embed
+                    await ctx.send(embed=embed)
+                    
+        except Exception as e:
+            # Handle any errors
+            await ctx.send(f"An error occurred while searching: {str(e)}")
+            # Print the full error for debugging
+            import traceback
+            traceback.print_exc()
 # Run the bot with our token
 bot.run(TOKEN)
