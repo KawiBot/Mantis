@@ -272,7 +272,16 @@ async def remind_me(ctx, time_str, *, reminder_text):
     
     # Format a confirmation message with the reminder time
     time_str = end_time.strftime("%I:%M %p on %b %d, %Y")
-    await ctx.send(f"I'll remind you about '{reminder_text}' at {time_str}")
+    embed = discord.Embed(
+        title="Reminder Confirmation",
+        color=discord.Color.blue()
+    )
+    embed.add_field(
+        name=f"I'll remind you about '{reminder_text}' at {time_str}",
+        value="",
+        inline=False
+    )
+    await ctx.send(embed=embed)
     
     # Start the reminder check task if it's not already running
     if not check_reminders.is_running():
@@ -320,9 +329,16 @@ async def cancel_reminder(ctx, reminder_num: int):
     # Remove the reminder
     cancelled = reminders[user_id].pop(reminder_num - 1)
     save_reminders()
-    
-    await ctx.send(f"Cancelled reminder: '{cancelled['message']}'")
-    
+    embed=discord.Embed(
+        title="Cancelled Reminder",
+        color=discord.Color.dark_red()
+    )
+    embed.add_field(
+        name="",
+        value=f"Your reminder:{cancelled['message']} has been cancelled!",
+        inline=False
+    )
+    await ctx.send(embed=embed)
     # Stop the check task if there are no more reminders
     if sum(len(user_reminders) for user_reminders in reminders.values()) == 0:
         check_reminders.stop()
