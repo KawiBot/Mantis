@@ -152,8 +152,8 @@ async def help_command(ctx, category=None):
                 "help": "Shows this help message",
                 "ping": "Checks bot response time",
                 "google": "Googles anything you want and returns 5 results",
-                "remindme": "Sets a reminder to be notified at a later time. Example: '!remindme 5m Take pizza out of the oven'",
-                "myreminders": "Returns a list of all your reminders.",
+                "remindme":"Set a reminder. Example: !remindme 5m Take the pizza out of the oven",
+                "myreminders": "List of all your reminders.",
                 "cancelreminder": "Allows you to cancel a reminder based on it's number."
             },
             "info": {
