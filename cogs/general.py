@@ -1,3 +1,4 @@
+import datetime
 import discord
 from discord.ext import commands
 import time
@@ -84,6 +85,75 @@ class General(commands.Cog):
                 await ctx.send(embed=embed)
             else:
                 await ctx.send(f"Category '{category}' not found. Use `!help` to see available categories.")
+    @commands.command(name='serverinfo')
+    async def server_info(self, ctx):
+        guild = ctx.guild
+    
+        # Get owner information safely
+        owner_info = "Not available"
+        if guild.owner:
+            owner_info = guild.owner.display_name
+        else:
+            if guild.owner_id:
+                try:
+                    owner = await guild.fetch_member(guild.owner_id)
+                    if owner:
+                        owner_info = owner.display_name
+                except discord.errors.NotFound:
+                    pass
+    
+        # Create the embed
+        embed = discord.Embed(
+            title=f"{guild.name} Server Information",
+            description=f"Information about this Discord server",
+            color=discord.Color.blue(),  # You can choose any color you like
+            timestamp=datetime.datetime.now()  # Adds a timestamp to the embed
+        )
+    
+        # Add server icon as thumbnail if available
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+    
+        # Add fields for each piece of information
+        embed.add_field(name="Server ID", value=guild.id, inline=True)
+        embed.add_field(name="Owner", value=owner_info, inline=True)
+        embed.add_field(name="Created On", value=guild.created_at.strftime("%B %d, %Y"),    inline=True)
+    
+        # Member counts
+        embed.add_field(name="Total Members", value=guild.member_count, inline=True)
+    
+        # Try to get more detailed member counts if possible
+        try:
+            online_members = len([m for m in guild.members if m.status != discord.Status.   offline])
+            embed.add_field(name="Online Members", value=online_members, inline=True)
+        except:
+            # This might fail if the bot doesn't have the members intent
+            pass
+    
+        # Channel counts
+        text_channels = len(guild.text_channels)
+        voice_channels = len(guild.voice_channels)
+        categories = len(guild.categories)
+    
+        embed.add_field(name="Channels", value=f"{text_channels} Text | {voice_channels}    Voice | {categories} Categories", inline=True)
+    
+        # Role information
+        embed.add_field(name="Roles", value=len(guild.roles), inline=True)
+    
+        # Server boost information
+        premium_tier = guild.premium_tier
+        premium_subscriptions = guild.premium_subscription_count
+        embed.add_field(name="Boost Tier", value=f"Level {premium_tier}     ({premium_subscriptions} boosts)", inline=True)
+    
+        # Server features
+        if guild.features:
+            embed.add_field(name="Server Features", value=", ".join(guild.features).replace ("_", " ").title(), inline=False)
+    
+        # Set footer
+        embed.set_footer(text=f"Requested by {ctx.author.display_name}", icon_url=ctx.  author.display_avatar.url)
+    
+        # Send the embed
+        await ctx.send(embed=embed)
         
 async def setup(bot):
     await bot.add_cog(General(bot))
