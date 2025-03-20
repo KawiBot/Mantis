@@ -9,7 +9,7 @@ import os
 
 class Trivia(commands.Cog):
     def __init__(self, bot):
-        self.self.bot = self.bot
+        self.bot = bot
         self.trivia_scores = {}
         self.load_scores()
     
@@ -141,25 +141,25 @@ class Trivia(commands.Cog):
                     
                     # Update user's score in the database
                     user_id = str(ctx.author.id)
-                    if user_id not in self.bot.trivia_scores:
-                        self.bot.trivia_scores[user_id] = {"correct": 0, "total": 0}
+                    if user_id not in self.trivia_scores:
+                        self.trivia_scores[user_id] = {"correct": 0, "total": 0}
                     
-                    self.bot.trivia_scores[user_id]["total"] += 1
+                    self.trivia_scores[user_id]["total"] += 1
                     
                     if answer_index == correct_index:
-                        self.bot.trivia_scores[user_id]["correct"] += 1
+                        self.trivia_scores[user_id]["correct"] += 1
                         
                         # Calculate the user's success rate as a percentage
-                        success_rate = (self.bot.trivia_scores[user_id]["correct"] / self.bot.trivia_scores[user_id]["total"]) * 100
+                        success_rate = (self.trivia_scores[user_id]["correct"] / self.trivia_scores[user_id]["total"]) * 100
                         
                         await ctx.send(f"✅ Correct! The answer was {answer_letters[correct_index]}: {correct_answer}\n" 
-                                      f"Your score: {self.bot.trivia_scores[user_id]['correct']}/{self.bot.trivia_scores[user_id]['total']} ({success_rate:.1f}%)")
+                                      f"Your score: {self.trivia_scores[user_id]['correct']}/{self.trivia_scores[user_id]['total']} ({success_rate:.1f}%)")
                     else:
                         # Calculate the user's success rate as a percentage
-                        success_rate = (self.bot.trivia_scores[user_id]["correct"] / self.bot.trivia_scores[user_id]["total"]) * 100
+                        success_rate = (self.trivia_scores[user_id]["correct"] / self.trivia_scores[user_id]["total"]) * 100
                         
                         await ctx.send(f"❌ Wrong! The correct answer was {answer_letters[correct_index]}: {correct_answer}\n"
-                                      f"Your score: {self.bot.trivia_scores[user_id]['correct']}/{self.bot.trivia_scores[user_id]['total']} ({success_rate:.1f}%)")
+                                      f"Your score: {self.trivia_scores[user_id]['correct']}/{self.trivia_scores[user_id]['total']} ({success_rate:.1f}%)")
                     
                     # Save the updated scores
                     self.save_scores()
@@ -172,14 +172,6 @@ class Trivia(commands.Cog):
             import traceback
             traceback.print_exc()
 
-    
-       
-        # Command implementation as before, but using self.trivia_scores instead of self.bot.trivia_scores
-        # and self.save_scores() instead of save_scores()
-        
-        # For example:
-        # ... rest of command code ...
-        
         # Update user's score
         user_id = str(ctx.author.id)
         if user_id not in self.trivia_scores:
@@ -205,13 +197,13 @@ class Trivia(commands.Cog):
     
         user_id = str(user.id)
     
-        if user_id not in self.bot.trivia_scores or self.bot.trivia_scores[user_id]["total"] == 0:
+        if user_id not in self.trivia_scores or self.trivia_scores[user_id]["total"] == 0:
             await ctx.send(f"{user.display_name} hasn't answered any trivia questions yet!")
             return
     
         # Calculate statistics
-        correct = self.bot.trivia_scores[user_id]["correct"]
-        total = self.bot.trivia_scores[user_id]["total"]
+        correct = self.trivia_scores[user_id]["correct"]
+        total = self.trivia_scores[user_id]["total"]
         success_rate = (correct / total) * 100
     
         embed = discord.Embed(
@@ -231,13 +223,13 @@ class Trivia(commands.Cog):
         Show the trivia leaderboard
         Usage: !triviatop
         """
-        if not self.bot.trivia_scores:
+        if not self.trivia_scores:
             await ctx.send("No one has played trivia yet!")
             return
     
         # Sort users by correct answers
         sorted_scores = sorted(
-            self.bot.trivia_scores.items(), 
+            self.trivia_scores.items(), 
             key=lambda x: (x[1]["correct"], x[1]["correct"]/x[1]["total"] if x[1]["total"] > 0 else 0), 
             reverse=True
         )
