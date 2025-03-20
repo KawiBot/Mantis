@@ -12,7 +12,18 @@ bot = commands.Bot(command_prefix=config.PREFIX, intents=intents)
 
 # Remove default help command to create our own
 bot.remove_command('help')
-
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        await ctx.send("Command not found. Use `!help` to see available commands.")
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f"Missing required argument. Usage: `!{ctx.command.name} {ctx.command.signature}`")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send(f"Invalid argument type. Please check your input.")
+    else:
+        # Log the error for debugging
+        print(f"Error in command {ctx.command}: {error}")
+        await ctx.send("An error occurred while processing this command.")
 # Load all cogs from the cogs directory
 async def load_cogs():
     for filename in os.listdir('./cogs'):
